@@ -1,9 +1,9 @@
-//#include <QCoreApplication>
 #include <stdio.h>
 #include "cblas.h"
 #include "omp.h"
 #include <time.h>
 #include <stdlib.h>
+#include "qute.h"
 
 void method1(int M,int N,int T,double *Xin,double *Xout,double *Kern) {
     for (int n=0; n<N-T; n++) {
@@ -54,16 +54,10 @@ void method4(int M,int N,int T,double *Xin,double *Xout,double *Kern) {
         cblas_dgemv(CblasColMajor, CblasNoTrans, M, T, 1.0, &Xin[M*n], M, Kern, 1, 0.0, &Xout[M*n], 1);
     }
 }
-//void method5(int M,int N,int T,double *Xin,double *Xout,double *K2) {
-
-//    for (int n=0; n+T-1<N-T; n+=T) {
-//        cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,M,T,2*T-1,1.0,&Xin[M*n],M,K2,(2*T-1),0,&Xout[M*n],M);
-//    }
-//}
 
 void method5(int M,int N,int T,double *Xin,double *Xout,double *Kern) {
 
-    omp_set_num_threads(40);
+    omp_set_num_threads(10);
 #pragma omp parallel
   {
     int tid = omp_get_thread_num();
@@ -86,13 +80,15 @@ int main(int argc, char *argv[])
 
     srand(time(NULL));
 
-    int M=512;
-    int N=1200000;
-    int T=100;
+    long M=512; //number of channels
+    long N=48000; //number of timepoints
+    long T=100; //convolution kernel size
 
     double *Xin=(double *)malloc(sizeof(double)*M*N);
     double *Xout=(double *)malloc(sizeof(double)*M*N);
     double *Kern=(double *)malloc(sizeof(double)*T);
+
+    printf("Note: Each operation consists of a multiply and an add.\n\n");
 
     printf("Preparing...\n");
     for (int ii=0; ii<M*N; ii++) {
@@ -102,55 +98,59 @@ int main(int argc, char *argv[])
         Kern[t]=rand()*1.0/rand();
     }
 
-    if (0) {
-        printf("\nMethod 1...");
-        clock_t T1=clock();
+    if (1) {
+        printf("\nMethod 1 (simple loops)...\n");
+        QTime timer; timer.start();
         method1(M,N,T,Xin,Xout,Kern);
-        clock_t T2=clock();
-        double elapsed=((double)(T2-T1))/CLOCKS_PER_SEC;
+        double elapsed=timer.elapsed()*1.0/1000;
         printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
+        double mops=M*N*T/elapsed/1e6;
         printf("Method 1: Elapsed time: %.5f sec\n",elapsed);
-    }
-
-    if (0) {
-        printf("\nMethod 2...");
-        clock_t T1=clock();
-        method2(M,N,T,Xin,Xout,Kern);
-        clock_t T2=clock();
-        double elapsed=((double)(T2-T1))/CLOCKS_PER_SEC;
-        printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
-        printf("Method 2: Elapsed time: %.5f sec\n",elapsed);
-    }
-
-    if (0) {
-        printf("\nMethod 3...");
-        clock_t T1=clock();
-        method3(M,N,T,Xin,Xout,Kern);
-        clock_t T2=clock();
-        double elapsed=((double)(T2-T1))/CLOCKS_PER_SEC;
-        printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
-        printf("Method 3: Elapsed time: %.5f sec\n",elapsed);
-    }
-
-    if (0) {
-        printf("\nMethod 4...");
-        clock_t T1=clock();
-        method4(M,N,T,Xin,Xout,Kern);
-        clock_t T2=clock();
-        double elapsed=((double)(T2-T1))/CLOCKS_PER_SEC;
-        printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
-        printf("Method 4: Elapsed time: %.5f sec\n",elapsed);
+        printf("   *** %g million operations per second ***\n\n",mops);
     }
 
     if (1) {
-        printf("\nMethod 5...");
-        struct timespec T1,T2;
-        clock_gettime(CLOCK_REALTIME, &T1);
-        method5(M,N,T,Xin,Xout,Kern);
-        clock_gettime(CLOCK_REALTIME, &T2);
-        double elapsed=((double)((T2.tv_sec+T2.tv_nsec/1e9)-(T1.tv_sec+T1.tv_nsec/1e9)));
+        printf("\nMethod 2 (simple loops - method 2)...\n");
+        QTime timer; timer.start();
+        method2(M,N,T,Xin,Xout,Kern);
+        double elapsed=timer.elapsed()*1.0/1000;
         printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
-        printf("Method 5: Elapsed time: %g\n",elapsed);
+        double mops=M*N*T/elapsed/1e6;
+        printf("Method 2: Elapsed time: %.5f sec\n",elapsed);
+        printf("   *** %g million operations per second ***\n\n",mops);
+    }
+
+    if (1) {
+        printf("\nMethod 3 (cblas level 1)...\n");
+        QTime timer; timer.start();
+        method3(M,N,T,Xin,Xout,Kern);
+        double elapsed=timer.elapsed()*1.0/1000;
+        printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
+        double mops=M*N*T/elapsed/1e6;
+        printf("Method 3: Elapsed time: %.5f sec\n",elapsed);
+        printf("   *** %g million operations per second ***\n\n",mops);
+    }
+
+    if (1) {
+        printf("\nMethod 4 (cblas level 2)...\n");
+        QTime timer; timer.start();
+        method4(M,N,T,Xin,Xout,Kern);
+        double elapsed=timer.elapsed()*1.0/1000;
+        printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
+        double mops=M*N*T/elapsed/1e6;
+        printf("Method 4: Elapsed time: %.5f sec\n",elapsed);
+        printf("   *** %g million operations per second ***\n\n",mops);
+    }
+
+    if (1) {
+        printf("\nMethod 5 (cblas level 2, multiple threads)...\n");
+        QTime timer; timer.start();
+        method5(M,N,T,Xin,Xout,Kern);
+        double elapsed=timer.elapsed()*1.0/1000;
+        printf("%g,%g,%g\n",Xout[1],Xout[1000],Xout[100000]);
+        double mops=M*N*T/elapsed/1e6;
+        printf("Method 5: Elapsed time: %.5f sec\n",elapsed);
+        printf("   *** %g million operations per second ***\n\n",mops);
     }
 
     free(Xin);
@@ -159,6 +159,4 @@ int main(int argc, char *argv[])
 
 
     return 0;
-
-    //return a.exec();
 }
