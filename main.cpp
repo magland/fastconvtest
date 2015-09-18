@@ -81,8 +81,8 @@ int main(int argc, char *argv[])
     srand(time(NULL));
 
     long M=512; //number of channels
-    long N=48000; //number of timepoints
     long T=100; //convolution kernel size
+    long N=5e9/(M*T); //number of timepoints
 
     double *Xin=(double *)malloc(sizeof(double)*M*N);
     double *Xout=(double *)malloc(sizeof(double)*M*N);
