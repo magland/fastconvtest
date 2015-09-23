@@ -5,14 +5,22 @@
 #include <stdlib.h>
 #include "qute.h"
 
+#define SIXTEEN 64
 void method1(int M,int N,int T,double *Xin,double *Xout,double *Kern) {
+    double vals[SIXTEEN];
     for (int n=0; n<N-T; n++) {
-        for (int m=0; m<M; m++) {
-            double val=0;
+        for (int m=0; m<M; m+=SIXTEEN) {
+            for (int m2=0; m2<SIXTEEN; m2++) vals[m2]=0;
             for (int dt=0; dt<T; dt++) {
-                val+=Xin[m+M*(n+dt)]*Kern[dt];
+                int iii=m+M*(n+dt);
+                for (int m2=0; m2<SIXTEEN; m2++) {
+                    vals[m2]+=Xin[iii]*Kern[dt];
+                    iii++;
+                }
             }
-            Xout[m+M*n]=val;
+            for (int m2=0; m2<SIXTEEN; m2++) {
+                Xout[m+m2+M*n]=vals[m2];
+            }
         }
     }
 }
@@ -80,8 +88,8 @@ int main(int argc, char *argv[])
 
     srand(time(NULL));
 
-    long M=512; //number of channels
-    long T=100; //convolution kernel size
+    long M=511; //number of channels
+    long T=20; //convolution kernel size
     long N=5e9/(M*T); //number of timepoints
 
     double *Xin=(double *)malloc(sizeof(double)*M*N);
